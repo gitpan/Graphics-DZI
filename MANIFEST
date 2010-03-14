@@ -1,0 +1,14 @@
+Build.PL
+Changes
+MANIFEST
+README
+TODO
+lib/Graphics/DZI.pm
+lib/Graphics/DZI/Files.pm
+lib/Graphics/DZI/A4.pm
+t/01_dzi.t
+t/pod-coverage.t
+t/pod.t
+script/deepzoom
+Makefile.PL
+META.yml
