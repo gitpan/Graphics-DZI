@@ -2,6 +2,7 @@ package Graphics::DZI;
 
 use warnings;
 use strict;
+use POSIX;
 
 use Moose;
 
@@ -64,6 +65,11 @@ Specifies how much the individual tiles overlap.
 
 Specifies the quadratic size of each tile.
 
+=item C<overlays> (list reference, default: [])
+
+An array of L<Graphics::DZI::Overlay> objects which describe how further images are supposed to be
+composed onto the canvas image.
+
 =back
 
 =cut
@@ -71,8 +77,9 @@ Specifies the quadratic size of each tile.
 has 'image'    => (isa => 'Image::Magick', is => 'rw', required => 1);
 has 'scale'    => (isa => 'Int',           is => 'ro', default => 1);
 has 'overlap'  => (isa => 'Int',           is => 'ro', default => 4);
-has 'tilesize' => (isa => 'Int',           is => 'ro', default => 128);
+has 'tilesize' => (isa => 'Int',           is => 'ro', default => 256);
 has 'format'   => (isa => 'Str'   ,        is => 'ro', default => 'png');
+has 'overlays' => (isa => 'ArrayRef',      is => 'rw', default => sub { [] });
 
 =head2 Methods
 
@@ -93,80 +100,47 @@ sub crop {
     my ($tx, $ty, $tdx, $tdy) = @_;
 
     my $image = $self->{image};
-    my $tile  = $image->Clone;
+    my $tile  = $image->clone;
     if ($scale != 1) {                                                                       # if our image is not quite the total space
+#	warn "new canvas tile scaled $scale";
 	my ($htx, $hty, $htdx, $htdy) = map { int ($_ / $scale) }
 	                                ($tx, $ty, $tdx, $tdy);                              # rescale this tile to the image dims we have
 	$log->debug ("rescale $tx, $ty  -->  $htx, $hty");
-	$tile->Crop (geometry => "${htdx}x${htdy}+${htx}+${hty}");                           # cut that smaller one out
+	$tile->Crop   (geometry => "${htdx}x${htdy}+${htx}+${hty}");                         # cut that smaller one out
 	$tile->Resize ("${tdx}x${tdy}");                                                     # and make it bigger
     } else {                                                                                 # otherwise we are happy with what we have, dimension-wise
+#	warn "new canvas tile unscaled";
 	$tile->Crop (geometry => "${tdx}x${tdy}+${tx}+${ty}");                               # cut one out
     }
     $log->debug ("tiled ${tdx}x${tdy}+${tx}+${ty}");
-
-    foreach my $o (@{ $self->{overlays} }) {                                                 # if we have overlay images
-	my ($w, $h) = $o->{image}->GetAttributes ('width', 'height');
-	$o->{dx} = $w;
-	$o->{dy} = $h;
-
-	if (my $r = _intersection ($tx,     $ty,     $tx+$tdx,           $ty+$tdy,                   # tile and overlay intersect?
-				   $o->{x}, $o->{y}, $o->{x} + $o->{dx}, $o->{y} +$o->{dy})) {
-#	    warn " intersection!";
-	    my ($ox, $oy, $dx, $dy) = (
-		$r->[0] - $o->{x},           # x relative to overlay
-		$r->[1] - $o->{y},           # y relative to overlay
-
-		$r->[2] - $r->[0],           # width of the intersection
-		$r->[3] - $r->[1],           # height
-		);
-
-	    my $oc = $o->{image}->clone;
-#	    $oc->Display();
-
-	    $oc->Crop (geometry => "${dx}x${dy}+${ox}+${oy}");
-#	    warn "cropped oc";
-#	    $oc->Display();
-
-	    $tile->Composite (image => $oc,
-			      x     => $r->[0] - $tx,    # intersection left/top relative to tile
-			      'y'   => $r->[1] - $ty,
-			      compose => 'Over',
-#			      compose => 'Overlay',
-#                             opacity => 50,
-		);
-#	    $tile->Display();
-	}
-    }
-
+#    $tile->Display();
     return $tile;
 }
 
-sub _intersection {
-    my ($ax, $ay, $axx, $ayy,
-	$bx, $by, $bxx, $byy) = @_;
+=item B<dimensions>
 
-    if (_intersects ($ax, $ay, $axx, $ayy,
-		     $bx, $by, $bxx, $byy)) {
-	return [
-	    $ax  > $bx  ? $ax  : $bx,
-	    $ay  > $by  ? $ay  : $by,
-	    $axx > $bxx ? $bxx : $axx,
-	    $ayy > $byy ? $byy : $ayy
-	    ];
+(I<$W>, I<$H>) = I<$dzi>->dimensions ('total')
+
+(I<$W>, I<$H>) = I<$dzi>->dimensions ('canvas')
+
+This method computes how large (in pixels) the overall image will be. If C<canvas> is passed in,
+then any overlays are ignored. Otherwise their size (with their squeeze factors) are used to blow up
+the canvas, so that the overlays fit onto the canvas.
+
+=cut
+
+sub dimensions {
+    my $self = shift;
+    my $what = shift || 'total';
+
+    if ($what eq 'total') {
+	use List::Util qw(max);
+	my $max_squeeze = max map { $_->squeeze } @{ $self->overlays };
+	$self->{scale} = defined $max_squeeze ? $max_squeeze : 1;
+	return map { $_ * $self->{scale} } $self->image->GetAttributes ('width', 'height');
+    } else {
+	return $self->image->GetAttributes ('width', 'height');
     }
-}
-
-sub _intersects {
-    my ($ax, $ay, $axx, $ayy,
-	$bx, $by, $bxx, $byy) = @_;
-
-    return undef
-	if $axx < $bx
-	|| $bxx < $ax
-	|| $ayy < $by
-	|| $byy < $ay;
-    return 1;
 }
 
 =item B<iterate>
@@ -181,17 +155,19 @@ you add as parameters will be passed on to I<manifest>.
 
 sub iterate {
     my $self = shift;
-    my %options = @_;
 
     my $overlap_tilesize = $self->{tilesize} + 2 * $self->{overlap};
     my $border_tilesize  = $self->{tilesize} +     $self->{overlap};
 
-    my $image = $self->{image};                                      # DANGER: here we use our original - more efficient, though
-    my ($WIDTH, $HEIGHT) = map { $_ * $self->{scale} } $image->GetAttributes ('width', 'height');
-    $log->debug ("total dimensions: $WIDTH, $HEIGHT");
-    use POSIX;
-    my $MAXLEVEL = POSIX::ceil (log ($WIDTH > $HEIGHT ? $WIDTH : $HEIGHT) / log (2));
-    $log->debug ("   --> levels: $MAXLEVEL");
+    my ($CWIDTH, $CHEIGHT) = $self->dimensions ('canvas');                        $log->debug ("canvas dimensions: $CWIDTH, $CHEIGHT");
+    my $CANVAS_LEVEL       = POSIX::ceil (log ($CWIDTH > $CHEIGHT 
+					       ? $CWIDTH 
+					       : $CHEIGHT) / log (2));            $log->debug ("   --> levels: $CANVAS_LEVEL");
+
+    my ($WIDTH, $HEIGHT)   = $self->dimensions ('total');                         $log->debug ("total dimensions: $WIDTH, $HEIGHT");
+    my $MAXLEVEL           = POSIX::ceil (log ($WIDTH > $HEIGHT 
+					       ? $WIDTH
+					       : $HEIGHT) / log (2));             $log->debug ("   --> levels: $MAXLEVEL");
 
     my ($width, $height) = ($WIDTH, $HEIGHT);
     my $scale = $self->{scale};
@@ -205,24 +181,40 @@ sub iterate {
 
 		my $tile_dy = $y == 0 ? $border_tilesize : $overlap_tilesize;
 
-		my $tile = $self->crop ($scale, $x, $y, $tile_dx, $tile_dy);
-		$self->manifest ($tile, $level, $row, $col, %options);
+		my @tiles = grep { defined $_ }                                                # only where there was some intersection
+                            map {
+				$_->crop ($x, $y, $tile_dx, $tile_dy);                         # and for each overlay crop it onto a tile
+			    } @{ $self->overlays };                                            # look at all overlays
 
-		$y += ($tile_dy - 2 * $self->{overlap});
-		$row++;
+		if (@tiles) {                                                                  # if there is at least one overlay tile
+		    my $tile = $self->crop ($scale, $x, $y, $tile_dx, $tile_dy);               # do a crop in the canvas and try to get a tile
+		    map {
+			$tile->Composite (image => $_, x => 0, 'y' => 0, compose => 'Over')
+		    } @tiles;
+		    $self->manifest ($tile, $level, $row, $col);                               # we flush it
+
+		} elsif ($level <= $CANVAS_LEVEL) {                                            # only if we are in the same granularity of the canvas
+		    my $tile = $self->crop ($scale, $x, $y, $tile_dx, $tile_dy);               # do a crop there and try to get a tile
+		    $self->manifest ($tile, $level, $row, $col);                               # we flush it
+		}
+
+		$y += ($tile_dy - 2 * $self->{overlap});                                       # progress y forward
+		$row++;                                                                        # also the row count
 	    }
-	    $x += ($tile_dx - 2 * $self->{overlap});
-	    $col++;
+	    $x += ($tile_dx - 2 * $self->{overlap});                                           # progress x forward
+	    $col++;                                                                            # the col count
 	}
+
+#-- resizing canvas (virtually only)
 	($width, $height) = map { int ($_ / 2) } ($width, $height);
-	$scale /= 2;
-	
-#	$image->Resize (width => int($width/2), height => int($height/2));         # resize the canvas for next iteration
-	foreach my $o (@{ $self->{overlays} }) {                                   # also resize all overlays
-	    my ($w, $h) = $o->{image}->GetAttributes ('width', 'height');          # current dimensions
-	    $o->{image}->Resize (width => int($w/2), height => int($h/2));         # half size
-	    $o->{x} /= 2;                                                          # dont forget x, y 
-	    $o->{y} /= 2;
+	if (@{ $self->overlays }) {                                                            # do we have overlays from which the scale came?
+	    $scale /= 2;                                                                       # the overall magnification is to be reduced
+	    foreach my $o (@{ $self->overlays }) {                                             # also resize all overlays
+		$o->halfsize;
+	    }
+	} else {
+	    # keep scale == 1
+	    $self->{image}->Resize (width => $width, height => $height);                       # resize the canvas for next iteration
 	}
     }
 }
@@ -252,11 +244,11 @@ This method returns the DZI XML descriptor as string.
 =cut
 
 sub descriptor {
-    my $self = shift;
+    my $self     = shift;
     my $overlap  = $self->{overlap};
     my $tilesize = $self->{tilesize};
     my $format   = $self->{format};
-    my ($width, $height) = map { $_ * $self->{scale} }  $self->{image}->GetAttributes ('width', 'height');
+    my ($width, $height) = $self->dimensions ('total');
     return qq{<?xml version='1.0' encoding='UTF-8'?>
 <Image TileSize='$tilesize'
        Overlap='$overlap'
@@ -271,6 +263,10 @@ sub descriptor {
 
 =back
 
+=head1 TODOs
+
+See the TODOs file in the distribution.
+
 =head1 AUTHOR
 
 Robert Barta, C<< <drrho at cpan.org> >>
@@ -284,6 +280,6 @@ itself.
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 "against all odds";

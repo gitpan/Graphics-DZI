@@ -1,4 +1,4 @@
-#/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
@@ -26,7 +26,7 @@ deepzoom - converting images into the DZI format
    deepzoom day1.jpg day2.jpg day3.jpg ...
 
    # trying this with a document
-   deepzoom --document page1.png page2.png page3.png ...
+   deepzoom --document=linear page1.png page2.png page3.png ...
    
 =head1 DESCRIPTION
 
@@ -72,7 +72,7 @@ This option controls where the files are to be generated.
 =cut
 
 use Cwd;
-my $path = getcwd;
+my $path = getcwd . '/';
 $options{'path=s'} = \$path;
 
 =item B<format> (string, default: png)
@@ -103,7 +103,7 @@ better.
 
 =cut
 
-my $tilesize = 128;
+my $tilesize = 256;
 $options{'tilesize=i'} = \$tilesize;
 
 =item B<loglevel> (string, default: OFF)
@@ -122,30 +122,11 @@ ALL
 my $loglevel = 'OFF';
 $options{'loglevel=s'} = \$loglevel;
 
-=item B<document> (boolean, default: off)
+=item B<document> (undef, linear or exponential, default: undef)
 
 In I<document mode> the program will interpret all images as images of pages of a single document. It
-will produce composite images of these pages:
-
-=over
-
-=item 1x1
-
-A single image, populated by the first page.
-
-=item 2x2
-
-One image, tiled with the first 4 input images.
-
-=item 4x4
-
-One image, tiled with the first 16 input images.
-
-=item 8x8
-
-And so on, until all input images are fit.
-
-=back
+will produce composite images of the first pages (of the document). In I<linear mode> this is pages 1,
+1-4, 1-9, 1-16, in I<exponential mode> this are pages 1, 1-4, 1-16, 1-32, 1-64.
 
 Depending on the resolution within the DeepZoom tiling process the above composites are
 consulted. The overall idea being that at some distance, one only sees the start page of a document,
@@ -153,8 +134,8 @@ and the more you zoom in, the more pages you get to see.
 
 =cut
 
-my $document = 0;
-$options{'document!'} = \$document;
+my $document = undef;
+$options{'document=s'} = \$document;
 
 =item B<stretch> (integer, default: 1)
 
@@ -227,6 +208,7 @@ if ($document) {                                                             # d
 				     tilesize => $tilesize,
 				     path     => $path . $pref . '_files/',
 				     prefix   => $pref,
+				     pack     => $document,
 				     'format' => $format,
                              );
 
@@ -246,8 +228,6 @@ if ($document) {                                                             # d
             image => $a,
 	    file  => $b,
 	} } @images, @ARGV;
-    
-
 
     foreach my $d (@docs) {
 	my $pref;
@@ -271,15 +251,13 @@ if ($document) {                                                             # d
 	    );
 	$log->info ("writing descriptor to ".$path . $pref . '.xml');
 	use File::Slurp;
-	write_file ($path . $pref . '.xml',
-		    $dzi->descriptor
-	    );
+	write_file ($path . $pref . '.xml', $dzi->descriptor);
 	$log->info ("writing tiles to ". $path . $pref . '_files/');
 	$dzi->iterate ();
     }
 }
 
-=head1 PROBLEMS
+=head1 PITFALLS
 
 =over
 
@@ -290,8 +268,12 @@ L<http://kill.devc.at/node/316> .
 
 =item The process takes long time?
 
-Well, that just so. But one wise thing is to move all newly generated
-stuff into the target location when everything is finished.
+Well, that is just so. But one wise thing is to move all newly generated stuff into the target
+location when everything is finished.
+
+=item Should not the package delete files before writing?
+
+I do not think so, Tim. ;-)
 
 =back
 

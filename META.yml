@@ -1,6 +1,6 @@
 ---
 name: Graphics-DZI
-version: 0.02
+version: 0.03
 author:
   - 'Robert Barta <drrho@cpan.org>'
 abstract: DeepZoom Image Pyramid Generation
@@ -25,13 +25,19 @@ configure_requires:
 provides:
   Graphics::DZI:
     file: lib/Graphics/DZI.pm
-    version: 0.02
+    version: 0.03
   Graphics::DZI::A4:
     file: lib/Graphics/DZI/A4.pm
     version: 0.02
+  Graphics::DZI::Document:
+    file: lib/Graphics/DZI/Document.pm
+    version: 0.01
   Graphics::DZI::Files:
     file: lib/Graphics/DZI/Files.pm
     version: 0.02
+  Graphics::DZI::Overlay:
+    file: lib/Graphics/DZI/Overlay.pm
+    version: 0.01
 generated_by: Module::Build version 0.340201
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html

@@ -6,3 +6,8 @@
     1) crop larger than tile necessary
     2) resize this (to avoid artefacts)
     3) crop again, at tile size
+
+- add Graphics::DZI::cpio (if there were a streaming solution)
+- add Graphics::DZI::tar (if there were a *working* streaming solution
+- tests must be improved over time
+- add --overlay option to deepzoom

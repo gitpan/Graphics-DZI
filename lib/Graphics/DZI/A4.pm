@@ -60,23 +60,35 @@ Do not be fooled by the A4; any format should do.
 
 =cut
 
+use Moose::Util::TypeConstraints qw(enum);
+enum 'packing' => qw( exponential linear );
+
 has '+image'    => (isa => 'Image::Magick', required => 0);
 has 'A4s'       => (isa => 'ArrayRef',      is => 'ro'    );
 has 'W'         => (isa => 'Int'   ,        is => 'rw');
 has 'H'         => (isa => 'Int'   ,        is => 'rw');
 has 'sqrt'      => (isa => 'Num',           is => 'rw');
+has 'pack'      => (isa => 'packing',       is => 'rw', default => 'exponential');
 
 sub BUILD {
     my $self = shift;
-    warn "in BUILD";
-    my ($W, $H) = $self->A4s->[0]->GetAttributes ('width', 'height');     # single A4
-    $self->W ($W);
-    $self->H ($H);
+    ($self->{W}, $self->{H}) = $self->A4s->[0]->GetAttributes ('width', 'height');     # single A4
 
-    use POSIX;
-    my $log2 = POSIX::ceil (log (scalar @{$self->A4s}) / log (2));        # next fitting 2-potenz
-    $log2++ if $log2 % 2;                                                 # we can only use even ones
-    $self->sqrt ( 2**($log2/2) );                                         # how many along one edge when we organize them into a square?
+    use feature "switch";
+    given ($self->{pack}) {
+	when ('linear')      {
+	    use POSIX;
+	    $self->{ sqrt } = POSIX::ceil ( sqrt ( scalar @{$self->A4s}) );     # take the root + 1
+	}
+	when ('exponential') {
+	    use POSIX;
+	    my $log2 = POSIX::ceil (log (scalar @{$self->A4s}) / log (2));      # next fitting 2-potenz
+	    $log2++ if $log2 % 2;                                                 # we can only use even ones
+	    $self->{ sqrt }  = ( 2**($log2/2) );                                  # how many along one edge when we organize them into a square?
+	}
+	default { die "unhandled packing"; }
+    }
+    $self->{ image } = _list2huge ($self->sqrt, $self->W, $self->H, @{ $self->A4s }) ;
 }
 
 =head2 Methods
@@ -98,9 +110,10 @@ sub _list2huge {
     use Image::Magick;
     my $huge = Image::Magick->new ($dim);
     $huge->Read ('xc:white');
+    $huge->Transparent (color => 'white');
 
     foreach my $a (0 .. $sqrt*$sqrt - 1) {
-	my ($i, $j) = ( int( $a / $sqrt)  , $a % $sqrt );
+	my ($j, $i) = ( int( $a / $sqrt)  , $a % $sqrt );
 	$log->debug ("    index $a (x,y) = $i $j");
 
 	$huge->Composite (image => $_[$a],
@@ -120,7 +133,6 @@ sub iterate {
     my $overlap_tilesize = $self->tilesize + 2 * $self->overlap;
     my $border_tilesize  = $self->tilesize +     $self->overlap;
 
-    $self->image ( _list2huge ($self->sqrt, $self->W, $self->H, @{ $self->A4s }) );
     my ($WIDTH, $HEIGHT) = $self->image->GetAttributes ('width', 'height');
     $log->debug ("total dimension: $WIDTH, $HEIGHT");
     use POSIX;
@@ -149,12 +161,17 @@ sub iterate {
 	}
 	($width, $height) = map { int ($_ / 2) } ($width, $height);             # half size, and remember this is A4!
 
-	$self->sqrt ($self->sqrt / 2)                                           # FUCKINGLY RETARDED OO-crap
-	    if $self->sqrt > 1;                                                 # we do not go below 0
-	$self->image ( _list2huge ($self->sqrt,                                 # pack sqrt x sqrt A4s into one image
-				   $self->W, $self->H,
-				   @{ $self->A4s }
-		       ) );
+	if ($self->{ sqrt } > 1) {
+	    use feature "switch";
+	    given ($self->{pack}) {
+		when ('linear')      { $self->{ sqrt }--;    }                             # in linear packing we simply reduce the square root by one
+		when ('exponential') { $self->{ sqrt } /= 2; }
+		default {}
+	    }
+	    $self->{ image } = _list2huge ($self->sqrt,                                    # pack sqrt x sqrt A4s into one image
+					   $self->W, $self->H,
+					   @{ $self->A4s });
+	}
 	$self->image->Resize (width => $width, height => $height);            # at higher levels we need to resize that properly
     }
 }

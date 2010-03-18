@@ -1,8 +1,17 @@
 Revision history for Graphics-DZI
 
-0.01    Tue Mar  9 17:44:54 CET 2010
-	- experimental version
+!! means break of backward compatibility
+
+0.03    ?????????
+	- added sparse image support via overlays
+	- added sparse document images
+	- added Graphics::DZI: overlays option
+	- changed invocation line in deepzoom
+	- changed defaults for tilesizes to 256
 
 0.02	Sun Mar 14 18:13:34 CET 2010
 	- first release
+
+0.01    Tue Mar  9 17:44:54 CET 2010
+	- experimental version
 
