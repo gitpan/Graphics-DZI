@@ -2,7 +2,6 @@ use strict;
 use warnings;
 use Module::Build;
 
-my $version = '0.03';
 
 use Module::Build;
 my $class = Module::Build->subclass(
@@ -11,15 +10,15 @@ my $class = Module::Build->subclass(
 
 sub ACTION_upload {
     my $self = shift;
-    
-    $self->do_system(qw(cpan-upload Graphics-DZI-$version.tar.gz));
+    my $v = $self->dist_version();
+    $self->do_system(('cpan-upload', "Graphics-DZI-$v.tar.gz"));
 }
 SUBCLASS
 
 my $builder = Module::Build::Custom->new(
     module_name         => 'Graphics::DZI',
     license             => 'perl',
-    version             => $version,
+#    version             => $version,
     dist_author         => 'Robert Barta <drrho@cpan.org>',
     dist_version_from   => 'lib/Graphics/DZI.pm',
     build_requires => {
@@ -37,9 +36,12 @@ my $builder = Module::Build::Custom->new(
 	'Test::Exception'     => undef,
 	'Test::Pod::Coverage' => undef,
     },
-    add_to_cleanup      => [ 'Graphics-DZI-*' ],
+    script_files       => [ 'script/deepzoom' ],
+    add_to_cleanup     => [ 'Graphics-DZI-*' ],
     create_makefile_pl => 'traditional',
 );
 
 $builder->create_build_script();
+
+__END__
 

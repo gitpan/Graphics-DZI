@@ -2,7 +2,10 @@ Revision history for Graphics-DZI
 
 !! means break of backward compatibility
 
-0.03    ?????????
+0.04    Thu Mar 18 20:35:25 CET 2010
+	- fixed the problem of script not being installed automatically
+
+0.03    Thu Mar 18 19:20:25 CET 2010
 	- added sparse image support via overlays
 	- added sparse document images
 	- added Graphics::DZI: overlays option

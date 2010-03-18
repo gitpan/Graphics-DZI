@@ -19,7 +19,9 @@ WriteMakefile
                            'Test::Pod::Coverage' => undef
                          },
           'INSTALLDIRS' => 'site',
-          'EXE_FILES' => [],
+          'EXE_FILES' => [
+                           'script/deepzoom'
+                         ],
           'PL_FILES' => {}
         )
 ;
