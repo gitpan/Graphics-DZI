@@ -9,5 +9,7 @@
 
 - add Graphics::DZI::cpio (if there were a streaming solution)
 - add Graphics::DZI::tar (if there were a *working* streaming solution
+- add Graphics::DZI::DAV
 - tests must be improved over time
 - add --overlay option to deepzoom
+

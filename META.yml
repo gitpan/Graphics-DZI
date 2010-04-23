@@ -1,6 +1,6 @@
 ---
 name: Graphics-DZI
-version: 0.04
+version: 0.05
 author:
   - 'Robert Barta <drrho@cpan.org>'
 abstract: DeepZoom Image Pyramid Generation
@@ -8,24 +8,24 @@ license: perl
 resources:
   license: http://dev.perl.org/licenses/
 build_requires:
-  File::Basename: ~
-  File::Path: ~
-  File::Slurp: ~
-  Getopt::Long: ~
-  Image::Magick: ~
-  List::MoreUtils: ~
-  Log::Log4perl: ~
-  Moose: ~
-  Pod::Usage: ~
-  Test::Exception: ~
-  Test::More: ~
-  Test::Pod::Coverage: ~
+  File::Basename: ''
+  File::Path: ''
+  File::Slurp: ''
+  Getopt::Long: ''
+  Image::Magick: ''
+  List::MoreUtils: ''
+  Log::Log4perl: ''
+  Moose: ''
+  Pod::Usage: ''
+  Test::Exception: ''
+  Test::More: ''
+  Test::Pod::Coverage: ''
 configure_requires:
   Module::Build: 0.340201
 provides:
   Graphics::DZI:
     file: lib/Graphics/DZI.pm
-    version: 0.04
+    version: 0.05
   Graphics::DZI::A4:
     file: lib/Graphics/DZI/A4.pm
     version: 0.02

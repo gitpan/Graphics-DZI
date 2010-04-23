@@ -95,7 +95,7 @@ This specifies how much the generated tile images will overlap.
 my $overlap = 4;
 $options{'overlap=i'} = \$overlap;
 
-=item B<tilesize> (integer, default: 128)
+=item B<tilesize> (integer, default: 256)
 
 The smaller the tiles, the more there will be, but the quicker each will load. The default or C<256>
 works well for photos and graphics. For images containing text, a larger tile size is probably
@@ -275,6 +275,12 @@ location when everything is finished.
 
 I do not think so, Tim. ;-)
 
+=item Tile generation looks fine, but the tiles look completely distorted in the browser?
+
+That happened to me when a PNG image had a "page geometry" which was different from the
+picture geometry. The tiles seem to inherit the page geometry and on the client side things
+get really messed up.
+
 =back
 
 =head1 AUTHOR
@@ -290,7 +296,7 @@ under the same terms as Perl itself.
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 __END__
 

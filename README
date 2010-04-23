@@ -22,6 +22,12 @@ perldoc command.
 
     perldoc Graphics::DZI
 
+There are also some related blog entries:
+
+    http://kill.devc.at/node/319
+    http://kill.devc.at/node/320
+
+
 You can also look for information at:
 
     RT, CPAN's request tracker

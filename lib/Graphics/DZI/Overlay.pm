@@ -20,10 +20,10 @@ Graphics::DZI::Overlay - DeepZoom Image Pyramid, Sparse Images
   # build some overlays first
   use Graphics::DZI::Overlay;
   my $o1 = new Graphics::DZI::Overlay (image => ...,       # what is the image?
-                                       x => 1000, y, 1000, # where on the canvas?
+                                       x => 1000, y=>1000, # where on the canvas?
                                        squeeze => 64);     # how much smaller than the canvas?
   my $o2 = new Graphics::DZI::Overlay (image => ...,       # what is the image?
-                                       x => 2000, y, 2000, # where on the canvas?
+                                       x => 2000, y=>2000, # where on the canvas?
                                        squeeze => 32);     # how much smaller than the canvas?
   # then add the overlay over the canvas
   use Graphics::DZI::Files;

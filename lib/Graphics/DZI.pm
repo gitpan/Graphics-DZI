@@ -1,7 +1,7 @@
 package Graphics::DZI;
 
-use warnings;
 use strict;
+use warnings;
 use POSIX;
 
 use Moose;
@@ -19,7 +19,7 @@ Graphics::DZI - DeepZoom Image Pyramid Generation
 =head1 SYNOPSIS
 
   use Graphics::DZI;
-  my $dzi = Graphics::DZI::A4 (image    => $image,
+  my $dzi = Graphics::DZI     (image    => $image,
                                overlap  => $overlap,
                                tilesize => $tilesize,
                                format   => $format,
@@ -52,6 +52,13 @@ The constructor accepts the following fields:
 =item C<image>
 
 The L<Image::Magick> object which is used as canvas.
+
+(since 0.05)
+
+The image can also be a whole stack (L<Image::Magick> allows you to do that). In that case the
+bottom image is regarded as the one with the I<highest> degree of detail, and that is tiled first
+(at the higher resolutions). Images up the stack are then taken in turn, until only the top-level
+image remains. See C<pop> if you want to influence this policy.
 
 =item C<scale> (integer, default: 1)
 
@@ -99,8 +106,7 @@ sub crop {
     my $scale = shift;
     my ($tx, $ty, $tdx, $tdy) = @_;
 
-    my $image = $self->{image};
-    my $tile  = $image->clone;
+    my $tile  = $self->{image}->[-1]->clone;                                                 # always take the "last" (lowest) image
     if ($scale != 1) {                                                                       # if our image is not quite the total space
 #	warn "new canvas tile scaled $scale";
 	my ($htx, $hty, $htdx, $htdy) = map { int ($_ / $scale) }
@@ -133,14 +139,19 @@ sub dimensions {
     my $self = shift;
     my $what = shift || 'total';
 
+    my ($W, $H);
     if ($what eq 'total') {
 	use List::Util qw(max);
 	my $max_squeeze = max map { $_->squeeze } @{ $self->overlays };
 	$self->{scale} = defined $max_squeeze ? $max_squeeze : 1;
-	return map { $_ * $self->{scale} } $self->image->GetAttributes ('width', 'height');
+	($W, $H) = map { $_ * $self->{scale} } $self->image->GetAttributes ('width', 'height');
     } else {
-	return $self->image->GetAttributes ('width', 'height');
+	($W, $H) = $self->image->GetAttributes ('width', 'height');
     }
+    use POSIX;
+    my $level = POSIX::ceil (log ($W > $H ? $W : $H) / log (2));
+    $log->debug (" dimensions: $W, $H  --> levels: $level");
+    return ($W, $H, $level);
 }
 
 =item B<iterate>
@@ -151,6 +162,8 @@ This method will generate all necessary tiles, invoking the I<manifest> method. 
 override that one, if you do not want the tiles to be simply displayed on screen :-) Any options
 you add as parameters will be passed on to I<manifest>.
 
+B<NOTE>: During the process the image  will be modified!
+
 =cut
 
 sub iterate {
@@ -159,15 +172,8 @@ sub iterate {
     my $overlap_tilesize = $self->{tilesize} + 2 * $self->{overlap};
     my $border_tilesize  = $self->{tilesize} +     $self->{overlap};
 
-    my ($CWIDTH, $CHEIGHT) = $self->dimensions ('canvas');                        $log->debug ("canvas dimensions: $CWIDTH, $CHEIGHT");
-    my $CANVAS_LEVEL       = POSIX::ceil (log ($CWIDTH > $CHEIGHT 
-					       ? $CWIDTH 
-					       : $CHEIGHT) / log (2));            $log->debug ("   --> levels: $CANVAS_LEVEL");
-
-    my ($WIDTH, $HEIGHT)   = $self->dimensions ('total');                         $log->debug ("total dimensions: $WIDTH, $HEIGHT");
-    my $MAXLEVEL           = POSIX::ceil (log ($WIDTH > $HEIGHT 
-					       ? $WIDTH
-					       : $HEIGHT) / log (2));             $log->debug ("   --> levels: $MAXLEVEL");
+    my ($CWIDTH, $CHEIGHT, $CANVAS_LEVEL) = $self->dimensions ('canvas');
+    my ($WIDTH,  $HEIGHT,  $MAXLEVEL)     = $self->dimensions ('total');
 
     my ($width, $height) = ($WIDTH, $HEIGHT);
     my $scale = $self->{scale};
@@ -195,6 +201,7 @@ sub iterate {
 
 		} elsif ($level <= $CANVAS_LEVEL) {                                            # only if we are in the same granularity of the canvas
 		    my $tile = $self->crop ($scale, $x, $y, $tile_dx, $tile_dy);               # do a crop there and try to get a tile
+#warn "tile ";		    $tile->Display();
 		    $self->manifest ($tile, $level, $row, $col);                               # we flush it
 		}
 
@@ -205,8 +212,8 @@ sub iterate {
 	    $col++;                                                                            # the col count
 	}
 
-#-- resizing canvas (virtually only)
-	($width, $height) = map { int ($_ / 2) } ($width, $height);
+#-- resizing canvas
+	($width, $height) = map { POSIX::ceil ($_ / 2) } ($width, $height);
 	if (@{ $self->overlays }) {                                                            # do we have overlays from which the scale came?
 	    $scale /= 2;                                                                       # the overall magnification is to be reduced
 	    foreach my $o (@{ $self->overlays }) {                                             # also resize all overlays
@@ -216,7 +223,30 @@ sub iterate {
 	    # keep scale == 1
 	    $self->{image}->Resize (width => $width, height => $height);                       # resize the canvas for next iteration
 	}
+	$self->pop;                                                                            # for multi-level images
     }
+}
+
+=pod
+
+=item B<pop>
+
+(since 0.05)
+
+This method is only interesting to you if your canvas images is a whole stack, not just a single
+image. In that case, it will remove the first of the stack (a shift) to make the next in the line
+visible to the further tiling process. As the tiling starts with the highest resolution, your image
+stack should be organized that the one with the most details is on the bottom (highest index, pushed
+last).
+
+This method will do a C<pop> B<at every> half-sizing step and obviously only that long as there is
+something to shift. If you are not happy with this default policy, you will have to subclass.
+
+=cut
+
+sub pop {
+    my $self = shift;
+    pop @{ $self->image } if scalar @{ $self->image } > 1;                                   # if we have a stack of images, remove that with the most details (i.e. first)
 }
 
 =item B<manifest>
@@ -280,6 +310,6 @@ itself.
 
 =cut
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 "against all odds";
